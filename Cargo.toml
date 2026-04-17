@@ -1,19 +1,19 @@
 [package]
 name = "crostini"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
-license = "MIT"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
-keywords = ["container", "init", "pid1", "signal", "oci"]
+license = "MIT"
+keywords = ["container", "init", "oci", "pid1", "signal"]
 categories = ["os::unix-apis"]
 
 [dependencies]
-nix = { version = "0.31", features = ["signal", "process"] }
+nix = { version = "0.31", features = ["process", "signal"] }
 
 [profile.release]
+opt-level = "z"
 strip = "symbols"
 lto = true
-codegen-units = 1
-opt-level = "z"
 panic = "abort"
+codegen-units = 1
