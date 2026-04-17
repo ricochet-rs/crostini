@@ -2,6 +2,11 @@
 name = "crostini"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "A minimal PID 1 container init that forwards signals and reaps zombies"
+repository = "https://github.com/ricochet-rs/crostini"
+keywords = ["container", "init", "pid1", "signal", "oci"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 nix = { version = "0.31", features = ["signal", "process"] }
