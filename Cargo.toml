@@ -6,7 +6,7 @@ license = "MIT"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
 keywords = ["container", "init", "pid1", "signal", "oci"]
-categories = ["command-line-utilities"]
+categories = ["os::unix-apis"]
 
 [dependencies]
 nix = { version = "0.31", features = ["signal", "process"] }

@@ -1,38 +1,24 @@
-# crostini
+# crostini 🥖
 
-A minimal container init process (PID 1) for OCI containers, written in Rust.
-
-Named in the tradition of container inits named after small food items: `tini`, `catatonit`, `dumb-init`.
+A Rust library providing a correct, minimal PID 1 init for OCI containers. Unlike `tini` or `catatonit`, `crostini` is not a standalone binary. It is intended to be compiled directly into a Rust container runtime.
 
 ## Purpose
 
-`crostini` is designed for use with [libcontainer](https://github.com/youki-dev/youki) from the [youki](https://github.com/youki-dev/youki) project, which powers [Ricochet's](https://ricochet.rs) rootless container runtime for spawning R, Julia, and Python applications in safe execution environments.
+`crostini` is designed for use with [libcontainer](https://github.com/youki-dev/youki) from the [youki](https://github.com/youki-dev/youki) project, which powers [ricochet's](https://ricochet.rs) rootless container runtime for spawning R, Julia, and Python applications in safe execution environments.
 
-When a process runs as PID 1 inside a Linux PID namespace, the kernel silently drops signals that have no explicit handler installed. This means `SIGTERM` has no effect on a naive PID 1, preventing graceful shutdown. `crostini` solves this by sitting between the container runtime and the target process: it runs as PID 1, installs proper signal handlers, forwards signals to its child, reaps zombie processes, and exits with the child's exit code.
+When a rootless container is run as PID 1 inside of the Linux PID namespace, the kernel silently ignores signals that have no explicit handler.
+This means that there is no graceful shutdown when a `SIGTERM` is sent to a R process, for example.
+`crostini` solves this by sitting between the libcontainer runtime and the process. 
 
-It handles `SIGTERM`, `SIGINT`, and `SIGCHLD`, with no additional features beyond correct signal forwarding and zombie reaping.
+`crostini` is as smol as it gets. It handles
+
+- `SIGTERM`,
+- `SIGINT`,
+- and `SIGCHLD`.
+
+`crostini` has no additional features features beyond correct signal forwarding and zombie reaping.
 
 ## Usage
-
-```sh
-crostini -- <command> [args...]
-```
-
-The `--` separator is required. Everything after it becomes the child process argv.
-
-```sh
-crostini -- /opt/R/4.4.0/bin/R -s
-crostini -- /usr/bin/python3 /app/server.py
-crostini -- /bin/sh -c "echo hello"
-```
-
-## Exit codes
-
-`crostini` exits with the child's exit code directly if the child exits normally. If the child is killed by a signal, `crostini` exits with `128 + signal_number`, following the standard Unix convention.
-
-## Library usage
-
-`crostini` is also available as a Rust library for runtimes that want to embed init behaviour directly rather than calling an external binary.
 
 ```toml
 [dependencies]
@@ -41,22 +27,17 @@ crostini = "0.1"
 
 ```rust
 fn main() {
-    let argv = vec!["/usr/bin/python3".to_string(), "/app/server.py".to_string()];
+    let argv = vec!["/opt/R/4.5.3/bin/R", "-f", "/app/plumber.R"];
     std::process::exit(crostini::run(&argv));
 }
 ```
 
-`run` accepts any `&[S]` where `S: AsRef<OsStr>` and returns the child's exit code as an `i32`, following the same `128 + signal_number` convention as the binary.
+`run` accepts any `&[S]` where `S: AsRef<OsStr>` and returns the child's exit code as an `i32`. If the child exits normally, the exit code is returned directly. If the child is killed by a signal, the return value is `128 + signal_number`, following the standard Unix convention.
 
-## Building
+## Safety
 
-`crostini` compiles to a fully static musl binary for `x86_64` and `aarch64`.
-
-```sh
-cargo build --release --target x86_64-unknown-linux-musl
-cargo build --release --target aarch64-unknown-linux-musl
-```
+`crostini` is `#![forbid(unsafe_code)]`. All POSIX interactions go through the [`nix`](https://crates.io/crates/nix) crate, which provides safe Rust wrappers over the underlying syscalls.
 
 ## Dependencies
 
-`crostini` depends only on [`nix`](https://crates.io/crates/nix) for safe POSIX bindings. The implementation is synchronous, single-file, and has zero runtime dependencies in the produced binary.
+`crostini` depends only on [`nix`](https://crates.io/crates/nix) for safe POSIX bindings. The implementation is synchronous and single-file.
