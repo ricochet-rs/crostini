@@ -1,0 +1,14 @@
+[package]
+name = "crostini"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nix = { version = "0.31", features = ["signal", "process"] }
+
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1
+opt-level = "z"
+panic = "abort"
