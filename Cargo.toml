@@ -1,6 +1,6 @@
 [package]
 name = "crostini"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
@@ -9,7 +9,11 @@ keywords = ["container", "init", "oci", "pid1", "signal"]
 categories = ["os::unix-apis"]
 
 [dependencies]
+libcontainer = { version = "0.6", default-features = false, optional = true }
 nix = { version = "0.31", features = ["process", "signal"] }
+
+[features]
+libcontainer = ["dep:libcontainer"]
 
 [profile.release]
 opt-level = "z"

@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "libcontainer")]
+mod executor;
+#[cfg(feature = "libcontainer")]
+pub use executor::Crostini;
+
 use nix::{
     errno::Errno,
     sys::{
