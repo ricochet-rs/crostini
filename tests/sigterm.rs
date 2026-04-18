@@ -79,6 +79,96 @@ fn prepare_bundle(bundle: &Path) -> Result<()> {
 
 #[test]
 #[serial]
+fn r_interrupted_by_sigterm() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
+    let root = tempdir()?;
+    let bundle = root.path().join("bundle");
+    let state = root.path().join("state");
+    create_dir_all(&state)?;
+
+    let id = format!("crostini-test-r-{:x}", hash(root.path()));
+
+    let uid = geteuid().as_raw();
+    let gid = getegid().as_raw();
+    let mut spec = Spec::rootless(uid, gid);
+
+    if let Some(process) = spec.process_mut() {
+        process.set_args(Some(vec![
+            "/opt/R/4.5.3/bin/R".to_string(),
+            "--quiet".to_string(),
+            "-e".to_string(),
+            "Sys.sleep(10)".to_string(),
+        ]));
+        process.set_cwd("/".into());
+    }
+
+    let rootfs = bundle.join("rootfs");
+    for dir in ["bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt"] {
+        create_dir_all(rootfs.join(dir))?;
+    }
+
+    let mut mounts = spec.mounts().clone().unwrap_or_default();
+    for path in ["/bin", "/lib", "/usr", "/opt"] {
+        if Path::new(path).exists() {
+            mounts.push(
+                MountBuilder::default()
+                    .destination(path)
+                    .typ("bind")
+                    .source(path)
+                    .options(vec!["bind".to_string(), "ro".to_string()])
+                    .build()?,
+            );
+        }
+    }
+    if Path::new("/lib64").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/lib64")
+                .typ("bind")
+                .source("/lib64")
+                .options(vec!["bind".to_string(), "ro".to_string()])
+                .build()?,
+        );
+    }
+    spec.set_mounts(Some(mounts));
+    spec.save(bundle.join("config.json"))?;
+
+    let container = ContainerBuilder::new(id, SyscallType::Linux)
+        .with_executor(crostini::Crostini)
+        .with_root_path(&state)?
+        .as_init(&bundle)
+        .with_systemd(use_systemd())
+        .build()?;
+
+    let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
+
+    let mut container = scopeguard::guard(container, |mut c| {
+        let _ = c.delete(true);
+    });
+
+    container.start()?;
+
+    // Give R time to start Sys.sleep before sending SIGTERM.
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    kill(init_pid, Signal::SIGTERM)?;
+
+    let status = waitpid(init_pid, Some(WaitPidFlag::empty()))?;
+
+    // R exits with 130 when interrupted by SIGINT, 143 for SIGTERM (128 + 15).
+    match status {
+        WaitStatus::Exited(_, code) => assert_eq!(code, 143),
+        other => panic!("unexpected wait status: {other:?}"),
+    }
+
+    Ok(())
+}
+
+#[test]
+#[serial]
 fn sigterm_forwarded_to_child() -> Result<()> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
