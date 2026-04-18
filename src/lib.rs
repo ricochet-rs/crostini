@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 #[cfg(feature = "libcontainer")]
 mod executor;
 #[cfg(feature = "libcontainer")]
