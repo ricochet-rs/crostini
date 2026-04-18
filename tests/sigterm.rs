@@ -79,6 +79,8 @@ fn prepare_bundle(bundle: &Path) -> Result<()> {
 
 #[test]
 #[serial]
+#[test]
+#[serial]
 fn r_interrupted_by_sigterm() -> Result<()> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
