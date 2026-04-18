@@ -108,7 +108,7 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     }
 
     let rootfs = bundle.join("rootfs");
-    for dir in ["bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt"] {
+    for dir in ["bin", "lib", "lib/x86_64-linux-gnu", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt"] {
         create_dir_all(rootfs.join(dir))?;
     }
 
