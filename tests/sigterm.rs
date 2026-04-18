@@ -2,8 +2,6 @@
 
 use std::fs::create_dir_all;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::io::{BufRead, BufReader};
-use std::os::unix::io::OwnedFd;
 use std::path::Path;
 
 use anyhow::Result;
@@ -94,53 +92,26 @@ fn sigterm_forwarded_to_child() -> Result<()> {
     let id = format!("crostini-test-{:x}", hash(root.path()));
     prepare_bundle(&bundle)?;
 
-    // Pipe container stdout/stderr so eprintln! inside the container process is visible.
-    let (stdout_read, stdout_write) = std::os::unix::net::UnixStream::pair()?;
-    let (stderr_read, stderr_write) = std::os::unix::net::UnixStream::pair()?;
-    let stdout_fd = OwnedFd::from(stdout_write);
-    let stderr_fd = OwnedFd::from(stderr_write);
-
-    // Drain container stdout/stderr on background threads.
-    std::thread::spawn(move || {
-        for line in BufReader::new(stdout_read).lines().map_while(Result::ok) {
-            eprintln!("[container stdout] {line}");
-        }
-    });
-    std::thread::spawn(move || {
-        for line in BufReader::new(stderr_read).lines().map_while(Result::ok) {
-            eprintln!("[container stderr] {line}");
-        }
-    });
-
     let container = ContainerBuilder::new(id, SyscallType::Linux)
         .with_executor(crostini::Crostini)
         .with_root_path(&state)?
-        .with_stdout(stdout_fd)
-        .with_stderr(stderr_fd)
         .as_init(&bundle)
         .with_systemd(use_systemd())
         .build()?;
 
     let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
-    eprintln!(
-        "[test] build() done, init_pid={init_pid}, state={:?}",
-        container.state
-    );
 
     let mut container = scopeguard::guard(container, |mut c| {
         let _ = c.delete(true);
     });
 
     container.start()?;
-    eprintln!("[test] start() done, state={:?}", container.state);
 
     // Give crostini time to spawn its child before sending SIGTERM.
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    eprintln!("[test] sending SIGTERM to {init_pid}");
     kill(init_pid, Signal::SIGTERM)?;
 
-    eprintln!("[test] waiting on {init_pid}");
     let status = waitpid(init_pid, Some(WaitPidFlag::empty()))?;
 
     match status {

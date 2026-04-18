@@ -16,16 +16,6 @@ use std::{ffi::OsStr, os::unix::process::CommandExt, process::Command};
 
 #[tracing::instrument(skip(argv))]
 pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
-    // Log the inherited signal mask so we can see what youki left us with.
-    {
-        let mut inherited = SigSet::empty();
-        sigprocmask(SigmaskHow::SIG_SETMASK, None, Some(&mut inherited)).unwrap();
-        eprintln!("[crostini] inherited sigmask: SIGTERM={} SIGCHLD={} SIGINT={}",
-            inherited.contains(Signal::SIGTERM),
-            inherited.contains(Signal::SIGCHLD),
-            inherited.contains(Signal::SIGINT),
-        );
-    }
     tracing::info!("crostini: starting as PID 1 init");
 
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
@@ -61,7 +51,6 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     mask.remove(Signal::SIGTTOU);
 
     sigprocmask(SigmaskHow::SIG_SETMASK, Some(&mask), None).unwrap();
-    // let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC)?;
     let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC).expect("signalfd failed");
 
     let exit_code = 'outer: loop {
