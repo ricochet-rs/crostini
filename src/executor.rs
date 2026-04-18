@@ -51,7 +51,12 @@ impl Executor for Crostini {
             .and_then(|p| p.args().as_ref())
             .ok_or(ExecutorError::InvalidArg)?;
 
-        let exit_code = crate::run(args.as_slice());
-        std::process::exit(exit_code);
+        let exit_code =
+            crate::run(args.as_slice()).map_err(|e| ExecutorError::Other(e.to_string()));
+
+        match exit_code {
+            Ok(v) => std::process::exit(v),
+            Err(e) => Err(e),
+        }
     }
 }

@@ -23,7 +23,6 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> Result<i32> {
     tracing::info!("crostini: starting as PID 1 init");
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
 
-    // We wait on the child via waitpid(-1) in the signal loop, not via Child::wait().
     #[allow(clippy::zombie_processes)]
     let child = Command::new(&argv[0])
         .args(&argv[1..])
