@@ -1,17 +1,24 @@
 #![cfg(feature = "libcontainer")]
 
-use std::fs::create_dir_all;
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::Path;
-
 use anyhow::Result;
-use libcontainer::container::builder::ContainerBuilder;
-use libcontainer::oci_spec::runtime::{MountBuilder, Spec};
-use libcontainer::syscall::syscall::SyscallType;
-use nix::sys::signal::{Signal, kill};
-use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
-use nix::unistd::{Pid, getegid, geteuid};
+use libcontainer::{
+    container::builder::ContainerBuilder,
+    oci_spec::runtime::{MountBuilder, Spec},
+    syscall::syscall::SyscallType,
+};
+use nix::{
+    sys::{
+        signal::{Signal, kill},
+        wait::{WaitPidFlag, WaitStatus, waitpid},
+    },
+    unistd::{Pid, getegid, geteuid},
+};
 use serial_test::serial;
+use std::{
+    fs::create_dir_all,
+    hash::{DefaultHasher, Hash, Hasher},
+    path::Path,
+};
 use tempfile::tempdir;
 use tracing_subscriber::EnvFilter;
 
@@ -116,9 +123,8 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     ] {
         create_dir_all(rootfs.join(dir))?;
     }
-    // placeholder for the ld.so.cache bind mount
-    std::fs::write(rootfs.join("etc/ld.so.cache"), "")?;
 
+    std::fs::write(rootfs.join("etc/ld.so.cache"), "")?;
     let ro = vec!["bind".to_string(), "ro".to_string()];
     let mut mounts = spec.mounts().clone().unwrap_or_default();
     for path in ["/bin", "/lib", "/usr", "/opt"] {
@@ -143,7 +149,7 @@ fn r_interrupted_by_sigterm() -> Result<()> {
                 .build()?,
         );
     }
-    // Bind the host linker cache so the dynamic linker can resolve libraries.
+
     if Path::new("/etc/ld.so.cache").exists() {
         mounts.push(
             MountBuilder::default()
@@ -180,7 +186,7 @@ fn r_interrupted_by_sigterm() -> Result<()> {
 
     container.start()?;
 
-    // Give R time to start Sys.sleep before sending SIGTERM.
+    // sleep to let R start before sending sigterm
     std::thread::sleep(std::time::Duration::from_secs(2));
 
     kill(init_pid, Signal::SIGTERM)?;
@@ -226,7 +232,7 @@ fn sigterm_forwarded_to_child() -> Result<()> {
 
     container.start()?;
 
-    // Give crostini time to spawn its child before sending SIGTERM.
+    // let crostini start before killing the process
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     kill(init_pid, Signal::SIGTERM)?;
