@@ -6,6 +6,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use libcontainer::container::builder::ContainerBuilder;
+use tracing_subscriber::EnvFilter;
 use libcontainer::oci_spec::runtime::{MountBuilder, Spec};
 use libcontainer::syscall::syscall::SyscallType;
 use nix::sys::signal::{Signal, kill};
@@ -79,6 +80,10 @@ fn prepare_bundle(bundle: &Path) -> Result<()> {
 #[test]
 #[serial]
 fn sigterm_forwarded_to_child() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
     let root = tempdir()?;
     let bundle = root.path().join("bundle");
     let state = root.path().join("state");
