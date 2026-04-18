@@ -114,6 +114,9 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     for dir in ["usr", "proc", "sys", "dev", "tmp", "run", "opt", "root"] {
         create_dir_all(rootfs.join(dir))?;
     }
+    // /bin and /lib are symlinks to usr/bin and usr/lib on this system.
+    std::os::unix::fs::symlink("usr/bin", rootfs.join("bin"))?;
+    std::os::unix::fs::symlink("usr/lib", rootfs.join("lib"))?;
 
     let mut mounts = spec.mounts().clone().unwrap_or_default();
     for path in ["/usr", "/opt"] {
