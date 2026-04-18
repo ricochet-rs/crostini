@@ -111,7 +111,9 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     }
 
     let rootfs = bundle.join("rootfs");
-    for dir in ["bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt", "root", "etc"] {
+    for dir in [
+        "bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt", "root", "etc",
+    ] {
         create_dir_all(rootfs.join(dir))?;
     }
     // placeholder for the ld.so.cache bind mount
