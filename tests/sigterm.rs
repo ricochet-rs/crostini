@@ -152,6 +152,14 @@ fn r_interrupted_by_sigterm() -> Result<()> {
                 .build()?,
         );
     }
+    mounts.push(
+        MountBuilder::default()
+            .destination("/tmp")
+            .typ("tmpfs")
+            .source("tmpfs")
+            .options(vec!["mode=1777".to_string()])
+            .build()?,
+    );
     spec.set_mounts(Some(mounts));
     spec.save(bundle.join("config.json"))?;
 
