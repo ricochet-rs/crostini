@@ -22,8 +22,7 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
 
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
 
-    // Spawn before blocking signals so the child inherits a clean signal mask.
-    // We wait on the child via waitpid(-1) in the signal loop, not via Child::wait().
+    // we waitpid(-1) in the signal loop not via Child::wait()
     #[allow(clippy::zombie_processes)]
     let child = Command::new(&argv[0])
         .args(&argv[1..])
@@ -41,7 +40,7 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     mask.remove(Signal::SIGKILL);
     mask.remove(Signal::SIGSTOP);
 
-    // also remove fatal signals (see earlier note)
+    // also remove fatal signals
     mask.remove(Signal::SIGSEGV);
     mask.remove(Signal::SIGILL);
     mask.remove(Signal::SIGBUS);
@@ -49,12 +48,10 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     mask.remove(Signal::SIGFPE);
     mask.remove(Signal::SIGTRAP);
     mask.remove(Signal::SIGSYS);
-
-    // and TTY stop signals
     mask.remove(Signal::SIGTTIN);
     mask.remove(Signal::SIGTTOU);
 
-    sigprocmask(SigmaskHow::SIG_SETMASK, Some(&mask), None).unwrap();
+    sigprocmask(SigmaskHow::SIG_SETMASK, Some(&mask), None).expect("failed to make proc mask");
     let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC).expect("signalfd failed");
 
     let exit_code = 'outer: loop {
