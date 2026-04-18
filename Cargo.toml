@@ -1,6 +1,6 @@
 [package]
 name = "crostini"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
@@ -8,13 +8,16 @@ license = "MIT"
 keywords = ["container", "init", "oci", "pid1", "signal"]
 categories = ["os::unix-apis"]
 
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
-libcontainer = { version = "=0.6.0", default-features = false, features = ["systemd", "v2"], optional = true }
+libcontainer = { version = "=0.6.0", default-features = false, features = [
+  "systemd",
+  "v2"
+], optional = true }
 nix = { version = "0.31", features = ["process", "signal"] }
 tracing = "0.1"
-
-[features]
-libcontainer = ["dep:libcontainer"]
 
 [dev-dependencies]
 anyhow = "1"
@@ -23,6 +26,9 @@ scopeguard = "1"
 serial_test = "3"
 tempfile = "3"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+libcontainer = ["dep:libcontainer"]
 
 [profile.release]
 opt-level = "z"

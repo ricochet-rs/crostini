@@ -1,24 +1,25 @@
 # crostini 🥖
 
-A Rust library providing a correct, minimal PID 1 init for OCI containers. Unlike [`tini`](https://github.com/krallin/tini) or [`catatonit`](https://github.com/openSUSE/catatonit), `crostini` is not a standalone binary. It is intended to be compiled directly into a Rust container runtime.
+A smol Rust library that provides a minimal PID 1 init process for OCI containers.
+
+`crostini` is **not** a binary. Instead, it is intended to be compiled directly into a Rust container runtime unlike [`tini`](https://github.com/krallin/tini) or [`catatonit`](https://github.com/openSUSE/catatonit) which are used as executables.
 
 ## Purpose
 
-`crostini` is designed for use with [libcontainer](https://github.com/youki-dev/youki) from the [youki](https://github.com/youki-dev/youki) project, which powers [Ricochet's](https://ricochet.rs) rootless container runtime for spawning R, Julia, and Python applications in safe execution environments.
+Specifically, `crostini` is designed for use with [libcontainer](https://github.com/youki-dev/youki) from the [youki](https://github.com/youki-dev/youki) project, which powers [ricochet's](https://ricochet.rs) rootless container runtime for spawning R, Julia, and Python applications in safe execution environments.
 
-When a rootless container is run as PID 1 inside of the Linux PID namespace, the kernel silently ignores signals that have no explicit handler. This means that there is no graceful shutdown when a `SIGTERM` is sent to an R process, for example. `crostini` solves this by sitting between the libcontainer runtime and the process.
+When a rootless container is run as PID 1 inside of the Linux PID namespace, signals such as `SIGTERM` are ignored if there is no explicit handler. This causes, for example, an R process to ignore a graceful shutdown request.
 
-`crostini` is as smol as it gets. It handles `SIGTERM`, `SIGINT`, and `SIGCHLD`, with no additional features beyond correct signal forwarding and zombie reaping.
+`crostini` solves this by acting as the [`Executor`](https://docs.rs/libcontainer/latest/libcontainer/workload/trait.Executor.html) of the libcontainer process.
+
 
 ## Usage
-
-### With libcontainer
 
 Enable the `libcontainer` feature to get the `Crostini` executor, which implements `libcontainer::workload::Executor` and can be passed directly to `ContainerBuilder`.
 
 ```toml
 [dependencies]
-crostini = { version = "0.2", features = ["libcontainer"] }
+crostini = { version = "0.3", features = ["libcontainer"] }
 ```
 
 ```rust
@@ -27,8 +28,8 @@ use libcontainer::syscall::syscall::SyscallType;
 
 let container = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
     .with_root_path("/run/containers")?
-    .as_init("/path/to/bundle")
     .with_executor(crostini::Crostini)
+    .as_init("/path/to/bundle")
     .with_systemd(false)
     .build()?;
 ```
@@ -39,7 +40,7 @@ let container = ContainerBuilder::new("my-container".to_string(), SyscallType::L
 
 ```toml
 [dependencies]
-crostini = "0.2"
+crostini = "0.3"
 ```
 
 ```rust
