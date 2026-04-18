@@ -79,8 +79,6 @@ fn prepare_bundle(bundle: &Path) -> Result<()> {
 
 #[test]
 #[serial]
-#[test]
-#[serial]
 fn r_interrupted_by_sigterm() -> Result<()> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -105,10 +103,15 @@ fn r_interrupted_by_sigterm() -> Result<()> {
             "Sys.sleep(10)".to_string(),
         ]));
         process.set_cwd("/".into());
+        process.set_env(Some(vec![
+            "PATH=/usr/bin:/bin".to_string(),
+            "HOME=/root".to_string(),
+            "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:/lib:/lib/x86_64-linux-gnu:/lib64".to_string(),
+        ]));
     }
 
     let rootfs = bundle.join("rootfs");
-    for dir in ["bin", "lib", "lib/x86_64-linux-gnu", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt"] {
+    for dir in ["bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt", "root"] {
         create_dir_all(rootfs.join(dir))?;
     }
 
