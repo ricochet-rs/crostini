@@ -18,8 +18,8 @@ use libcontainer::{
 ///
 /// let container = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
 ///     .with_root_path("/run/containers")?
-///     .as_init("/path/to/bundle")
 ///     .with_executor(crostini::Crostini)
+///     .as_init("/path/to/bundle")
 ///     .with_systemd(false)
 ///     .build()?;
 /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -51,9 +51,7 @@ impl Executor for Crostini {
             .and_then(|p| p.args().as_ref())
             .ok_or(ExecutorError::InvalidArg)?;
 
-        eprintln!("[crostini] exec() called with args: {:?}", args);
         let exit_code = crate::run(args.as_slice());
-        eprintln!("[crostini] run() returned: {exit_code}");
         std::process::exit(exit_code);
     }
 }
