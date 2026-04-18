@@ -16,22 +16,23 @@ use nix::{
 };
 use std::{ffi::OsStr, os::unix::process::CommandExt, process::Command};
 
-#[tracing::instrument(skip(argv))]
-pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
-    tracing::info!("crostini: starting as PID 1 init");
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[tracing::instrument(skip(argv))]
+pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> Result<i32> {
+    tracing::info!("crostini: starting as PID 1 init");
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
 
-    // we waitpid(-1) in the signal loop not via Child::wait()
+    // We wait on the child via waitpid(-1) in the signal loop, not via Child::wait().
     #[allow(clippy::zombie_processes)]
     let child = Command::new(&argv[0])
         .args(&argv[1..])
         .process_group(0)
         .spawn()
-        .unwrap_or_else(|e| {
+        .map_err(|e| {
             tracing::error!(cmd = ?argv[0].as_ref(), error = %e, "crostini: failed to spawn child");
-            std::process::exit(127);
-        });
+            e
+        })?;
 
     let child_pid = Pid::from_raw(child.id() as i32);
     tracing::info!(%child_pid, "crostini: child spawned");
@@ -39,8 +40,6 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     let mut mask = SigSet::all();
     mask.remove(Signal::SIGKILL);
     mask.remove(Signal::SIGSTOP);
-
-    // also remove fatal signals
     mask.remove(Signal::SIGSEGV);
     mask.remove(Signal::SIGILL);
     mask.remove(Signal::SIGBUS);
@@ -51,17 +50,14 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     mask.remove(Signal::SIGTTIN);
     mask.remove(Signal::SIGTTOU);
 
-    sigprocmask(SigmaskHow::SIG_SETMASK, Some(&mask), None).expect("failed to make proc mask");
-    let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC).expect("signalfd failed");
+    sigprocmask(SigmaskHow::SIG_SETMASK, Some(&mask), None)?;
+    let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC)?;
 
     let exit_code = 'outer: loop {
         let info = match sfd.read_signal() {
             Ok(Some(i)) => i,
             Ok(None) => continue,
-            Err(e) => {
-                tracing::error!(error = %e, "crostini: signalfd read error");
-                std::process::exit(1);
-            }
+            Err(e) => return Err(e.into()),
         };
 
         let sig = match Signal::try_from(info.ssi_signo as i32) {
@@ -102,5 +98,5 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
         }
     }
 
-    exit_code
+    Ok(exit_code)
 }

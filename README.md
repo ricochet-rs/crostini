@@ -1,6 +1,6 @@
 # crostini 🥖
 
-A Rust library providing a correct, minimal PID 1 init for OCI containers. Unlike `tini` or `catatonit`, `crostini` is not a standalone binary. It is intended to be compiled directly into a Rust container runtime.
+A Rust library providing a correct, minimal PID 1 init for OCI containers. Unlike [`tini`](https://github.com/krallin/tini) or [`catatonit`](https://github.com/openSUSE/catatonit), `crostini` is not a standalone binary. It is intended to be compiled directly into a Rust container runtime.
 
 ## Purpose
 
