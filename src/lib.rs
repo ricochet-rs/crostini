@@ -21,6 +21,8 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> i32 {
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
 
     // Spawn before blocking signals so the child inherits a clean signal mask.
+    // We wait on the child via waitpid(-1) in the signal loop, not via Child::wait().
+    #[allow(clippy::zombie_processes)]
     let child = Command::new(&argv[0])
         .args(&argv[1..])
         .process_group(0)
