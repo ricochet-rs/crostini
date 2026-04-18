@@ -111,25 +111,46 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     }
 
     let rootfs = bundle.join("rootfs");
-    for dir in ["usr", "proc", "sys", "dev", "tmp", "run", "opt", "root"] {
+    for dir in ["bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt", "root", "etc"] {
         create_dir_all(rootfs.join(dir))?;
     }
-    // /bin and /lib are symlinks to usr/bin and usr/lib on this system.
-    std::os::unix::fs::symlink("usr/bin", rootfs.join("bin"))?;
-    std::os::unix::fs::symlink("usr/lib", rootfs.join("lib"))?;
+    // placeholder for the ld.so.cache bind mount
+    std::fs::write(rootfs.join("etc/ld.so.cache"), "")?;
 
+    let ro = vec!["bind".to_string(), "ro".to_string()];
     let mut mounts = spec.mounts().clone().unwrap_or_default();
-    for path in ["/usr", "/opt"] {
+    for path in ["/bin", "/lib", "/usr", "/opt"] {
         if Path::new(path).exists() {
             mounts.push(
                 MountBuilder::default()
                     .destination(path)
                     .typ("bind")
                     .source(path)
-                    .options(vec!["bind".to_string(), "ro".to_string()])
+                    .options(ro.clone())
                     .build()?,
             );
         }
+    }
+    if Path::new("/lib64").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/lib64")
+                .typ("bind")
+                .source("/lib64")
+                .options(ro.clone())
+                .build()?,
+        );
+    }
+    // Bind the host linker cache so the dynamic linker can resolve libraries.
+    if Path::new("/etc/ld.so.cache").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/etc/ld.so.cache")
+                .typ("bind")
+                .source("/etc/ld.so.cache")
+                .options(ro.clone())
+                .build()?,
+        );
     }
     spec.set_mounts(Some(mounts));
     spec.save(bundle.join("config.json"))?;
