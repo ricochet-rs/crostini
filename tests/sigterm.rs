@@ -106,7 +106,7 @@ fn r_interrupted_by_sigterm() -> Result<()> {
         process.set_env(Some(vec![
             "PATH=/usr/bin:/bin".to_string(),
             "HOME=/root".to_string(),
-            "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:/lib:/lib/x86_64-linux-gnu:/lib64".to_string(),
+            "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/openblas-pthread".to_string(),
         ]));
     }
 
@@ -116,7 +116,7 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     }
 
     let mut mounts = spec.mounts().clone().unwrap_or_default();
-    for path in ["/bin", "/lib", "/usr", "/opt"] {
+    for path in ["/usr", "/opt"] {
         if Path::new(path).exists() {
             mounts.push(
                 MountBuilder::default()
@@ -127,16 +127,6 @@ fn r_interrupted_by_sigterm() -> Result<()> {
                     .build()?,
             );
         }
-    }
-    if Path::new("/lib64").exists() {
-        mounts.push(
-            MountBuilder::default()
-                .destination("/lib64")
-                .typ("bind")
-                .source("/lib64")
-                .options(vec!["bind".to_string(), "ro".to_string()])
-                .build()?,
-        );
     }
     spec.set_mounts(Some(mounts));
     spec.save(bundle.join("config.json"))?;
