@@ -122,14 +122,17 @@ fn sigterm_forwarded_to_child() -> Result<()> {
         .build()?;
 
     let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
-    eprintln!("[test] build() done, init_pid={init_pid}, state={:?}", container.state());
+    eprintln!(
+        "[test] build() done, init_pid={init_pid}, state={:?}",
+        container.state
+    );
 
     let mut container = scopeguard::guard(container, |mut c| {
         let _ = c.delete(true);
     });
 
     container.start()?;
-    eprintln!("[test] start() done, state={:?}", container.state());
+    eprintln!("[test] start() done, state={:?}", container.state);
 
     // Give crostini time to spawn its child before sending SIGTERM.
     std::thread::sleep(std::time::Duration::from_secs(1));
