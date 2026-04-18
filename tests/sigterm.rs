@@ -1,0 +1,242 @@
+#![cfg(feature = "libcontainer")]
+
+use std::fs::create_dir_all;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::Path;
+
+use anyhow::Result;
+use libcontainer::container::builder::ContainerBuilder;
+use libcontainer::oci_spec::runtime::{MountBuilder, Spec};
+use libcontainer::syscall::syscall::SyscallType;
+use nix::sys::signal::{Signal, kill};
+use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
+use nix::unistd::{Pid, getegid, geteuid};
+use serial_test::serial;
+use tempfile::tempdir;
+use tracing_subscriber::EnvFilter;
+
+fn hash(v: impl Hash) -> u64 {
+    let mut hasher = DefaultHasher::default();
+    v.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn use_systemd() -> bool {
+    let systemd_running = Path::new("/run/systemd/system").exists()
+        && std::fs::read_to_string("/proc/1/comm")
+            .map(|c| c.trim() == "systemd")
+            .unwrap_or(false);
+    systemd_running && std::env::var("DBUS_SESSION_BUS_ADDRESS").is_ok()
+}
+
+fn prepare_bundle(bundle: &Path) -> Result<()> {
+    let rootfs = bundle.join("rootfs");
+
+    for dir in [
+        "bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run",
+    ] {
+        create_dir_all(rootfs.join(dir))?;
+    }
+
+    let uid = geteuid().as_raw();
+    let gid = getegid().as_raw();
+
+    let mut spec = Spec::rootless(uid, gid);
+
+    if let Some(process) = spec.process_mut() {
+        process.set_args(Some(vec!["sleep".to_string(), "30".to_string()]));
+        process.set_cwd("/".into());
+    }
+
+    let mut mounts = spec.mounts().clone().unwrap_or_default();
+    for path in ["/bin", "/lib", "/usr"] {
+        if Path::new(path).exists() {
+            mounts.push(
+                MountBuilder::default()
+                    .destination(path)
+                    .typ("bind")
+                    .source(path)
+                    .options(vec!["bind".to_string(), "ro".to_string()])
+                    .build()?,
+            );
+        }
+    }
+    if Path::new("/lib64").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/lib64")
+                .typ("bind")
+                .source("/lib64")
+                .options(vec!["bind".to_string(), "ro".to_string()])
+                .build()?,
+        );
+    }
+    spec.set_mounts(Some(mounts));
+
+    spec.save(bundle.join("config.json"))?;
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn r_interrupted_by_sigterm() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
+    let root = tempdir()?;
+    let bundle = root.path().join("bundle");
+    let state = root.path().join("state");
+    create_dir_all(&state)?;
+
+    let id = format!("crostini-test-r-{:x}", hash(root.path()));
+
+    let uid = geteuid().as_raw();
+    let gid = getegid().as_raw();
+    let mut spec = Spec::rootless(uid, gid);
+
+    if let Some(process) = spec.process_mut() {
+        process.set_args(Some(vec![
+            "/opt/R/4.5.3/bin/R".to_string(),
+            "--quiet".to_string(),
+            "-e".to_string(),
+            "Sys.sleep(10)".to_string(),
+        ]));
+        process.set_cwd("/".into());
+        process.set_env(Some(vec![
+            "PATH=/usr/bin:/bin".to_string(),
+            "HOME=/root".to_string(),
+            "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/openblas-pthread".to_string(),
+        ]));
+    }
+
+    let rootfs = bundle.join("rootfs");
+    for dir in [
+        "bin", "lib", "lib64", "usr", "proc", "sys", "dev", "tmp", "run", "opt", "root", "etc",
+    ] {
+        create_dir_all(rootfs.join(dir))?;
+    }
+    // placeholder for the ld.so.cache bind mount
+    std::fs::write(rootfs.join("etc/ld.so.cache"), "")?;
+
+    let ro = vec!["bind".to_string(), "ro".to_string()];
+    let mut mounts = spec.mounts().clone().unwrap_or_default();
+    for path in ["/bin", "/lib", "/usr", "/opt"] {
+        if Path::new(path).exists() {
+            mounts.push(
+                MountBuilder::default()
+                    .destination(path)
+                    .typ("bind")
+                    .source(path)
+                    .options(ro.clone())
+                    .build()?,
+            );
+        }
+    }
+    if Path::new("/lib64").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/lib64")
+                .typ("bind")
+                .source("/lib64")
+                .options(ro.clone())
+                .build()?,
+        );
+    }
+    // Bind the host linker cache so the dynamic linker can resolve libraries.
+    if Path::new("/etc/ld.so.cache").exists() {
+        mounts.push(
+            MountBuilder::default()
+                .destination("/etc/ld.so.cache")
+                .typ("bind")
+                .source("/etc/ld.so.cache")
+                .options(ro.clone())
+                .build()?,
+        );
+    }
+    mounts.push(
+        MountBuilder::default()
+            .destination("/tmp")
+            .typ("tmpfs")
+            .source("tmpfs")
+            .options(vec!["mode=1777".to_string()])
+            .build()?,
+    );
+    spec.set_mounts(Some(mounts));
+    spec.save(bundle.join("config.json"))?;
+
+    let container = ContainerBuilder::new(id, SyscallType::Linux)
+        .with_executor(crostini::Crostini)
+        .with_root_path(&state)?
+        .as_init(&bundle)
+        .with_systemd(use_systemd())
+        .build()?;
+
+    let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
+
+    let mut container = scopeguard::guard(container, |mut c| {
+        let _ = c.delete(true);
+    });
+
+    container.start()?;
+
+    // Give R time to start Sys.sleep before sending SIGTERM.
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    kill(init_pid, Signal::SIGTERM)?;
+
+    let status = waitpid(init_pid, Some(WaitPidFlag::empty()))?;
+
+    // R exits with 130 when interrupted by SIGINT, 143 for SIGTERM (128 + 15).
+    match status {
+        WaitStatus::Exited(_, code) => assert_eq!(code, 143),
+        other => panic!("unexpected wait status: {other:?}"),
+    }
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn sigterm_forwarded_to_child() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
+    let root = tempdir()?;
+    let bundle = root.path().join("bundle");
+    let state = root.path().join("state");
+    create_dir_all(&state)?;
+
+    let id = format!("crostini-test-{:x}", hash(root.path()));
+    prepare_bundle(&bundle)?;
+
+    let container = ContainerBuilder::new(id, SyscallType::Linux)
+        .with_executor(crostini::Crostini)
+        .with_root_path(&state)?
+        .as_init(&bundle)
+        .with_systemd(use_systemd())
+        .build()?;
+
+    let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
+
+    let mut container = scopeguard::guard(container, |mut c| {
+        let _ = c.delete(true);
+    });
+
+    container.start()?;
+
+    // Give crostini time to spawn its child before sending SIGTERM.
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    kill(init_pid, Signal::SIGTERM)?;
+
+    let status = waitpid(init_pid, Some(WaitPidFlag::empty()))?;
+
+    match status {
+        WaitStatus::Exited(_, code) => assert_eq!(code, 143),
+        other => panic!("unexpected wait status: {other:?}"),
+    }
+
+    Ok(())
+}
