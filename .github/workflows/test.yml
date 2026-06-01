@@ -10,7 +10,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5.3'
       - name: Install AppArmor profile
         run: |
           sudo cp contrib/apparmor/crostini-tests /etc/apparmor.d/
