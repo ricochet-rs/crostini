@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install AppArmor profile
+        run: |
+          sudo cp contrib/apparmor/crostini-tests /etc/apparmor.d/
+          sudo apparmor_parser -r /etc/apparmor.d/crostini-tests
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo test
+        run: cargo test --locked --features libcontainer

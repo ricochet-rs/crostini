@@ -56,6 +56,8 @@ fn main() {
 
 `crostini` is `#![forbid(unsafe_code)]`. All POSIX interactions go through the [`nix`](https://crates.io/crates/nix) crate, which provides safe Rust wrappers over the underlying syscalls.
 
+Note that all FDs >= 3 are closed prior to spawning the child process.
+
 ## Dependencies
 
 `crostini` depends only on [`nix`](https://crates.io/crates/nix) for safe POSIX bindings. The `libcontainer` feature adds an optional dependency on [`libcontainer`](https://crates.io/crates/libcontainer).

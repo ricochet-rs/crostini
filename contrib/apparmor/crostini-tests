@@ -1,0 +1,10 @@
+# AppArmor profile for crostini integration test binaries
+abi <abi/4.0>,
+include <tunables/global>
+
+profile crostini-tests /**/target/debug/deps/* flags=(unconfined) {
+  userns,
+
+  # Site-specific additions and overrides.
+  include if exists <local/crostini-tests>
+}

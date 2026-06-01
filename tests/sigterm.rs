@@ -171,6 +171,12 @@ fn r_interrupted_by_sigterm() -> Result<()> {
     spec.set_mounts(Some(mounts));
     spec.save(bundle.join("config.json"))?;
 
+    eprintln!(
+        "fd dir snapshot: {:?}",
+        std::fs::read_dir("/proc/self/fd")?
+            .map(|e| e.unwrap().file_name())
+            .collect::<Vec<_>>()
+    );
     let container = ContainerBuilder::new(id, SyscallType::Linux)
         .with_executor(crostini::Crostini)
         .with_root_path(&state)?

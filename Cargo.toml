@@ -1,6 +1,6 @@
 [package]
 name = "crostini"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
@@ -16,12 +16,12 @@ libcontainer = { version = "=0.6.0", default-features = false, features = [
   "systemd",
   "v2"
 ], optional = true }
-nix = { version = "0.31", features = ["process", "signal"] }
+nix = { version = "0.31", features = ["dir", "process", "signal"] }
 tracing = "0.1"
 
 [dev-dependencies]
 anyhow = "1"
-nix = { version = "0.31", features = ["user"] }
+nix = { version = "0.31", features = ["user", "fs"] }
 scopeguard = "1"
 serial_test = "3"
 tempfile = "3"

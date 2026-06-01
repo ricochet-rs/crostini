@@ -23,6 +23,34 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> Result<i32> {
     tracing::info!("crostini: starting as PID 1 init");
     tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
 
+    match nix::dir::Dir::open(
+        "/proc/self/fd",
+        nix::fcntl::OFlag::O_RDONLY | nix::fcntl::OFlag::O_DIRECTORY,
+        nix::sys::stat::Mode::empty(),
+    ) {
+        Ok(dir) => {
+            use std::os::unix::io::AsRawFd;
+            let dirfd = dir.as_raw_fd();
+            let fds = dir
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e.file_name().to_str().ok()?.parse::<i32>().ok())
+                .filter(|&fd| fd >= 3 && fd != dirfd)
+                .collect::<Vec<_>>();
+            for fd in fds {
+                if let Err(e) = nix::unistd::close(fd) {
+                    tracing::error!(?e, fd, "could not close inherited fd");
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "could not enumerate /proc/self/fd inherited fds may leak into container"
+            );
+        }
+    }
+
     #[allow(clippy::zombie_processes)]
     let child = Command::new(&argv[0])
         .args(&argv[1..])
