@@ -1,3 +1,7 @@
+# 0.5.0
+
+- Bump `libcontainer` to 0.7.0 which adds rootless cgroup v2 support
+
 # 0.4.0
 
 - Inherited file descriptors >= 3 are closed before spawning the child preventing accidentally holding onto FDs 

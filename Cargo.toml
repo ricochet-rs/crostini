@@ -1,6 +1,6 @@
 [package]
 name = "crostini"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
@@ -12,7 +12,7 @@ categories = ["os::unix-apis"]
 all-features = true
 
 [dependencies]
-libcontainer = { version = "=0.6.0", default-features = false, features = [
+libcontainer = { version = "=0.7.0", default-features = false, features = [
   "systemd",
   "v2"
 ], optional = true }
