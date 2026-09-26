@@ -84,7 +84,6 @@ pub(crate) fn supervise(mut command: Command) -> Result<i32> {
     let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC)?;
 
     let exit_code = 'outer: loop {
-        // Reap before reading: a child that exited before the mask was set sent its SIGCHLD to no one.
         loop {
             match waitpid(Pid::from_raw(-1), Some(WaitPidFlag::WNOHANG)) {
                 Ok(WaitStatus::Exited(pid, code)) if pid == child_pid => {
