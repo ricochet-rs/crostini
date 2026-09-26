@@ -108,9 +108,9 @@ mod tests {
         let before: HashMap<String, String> = std::env::vars().collect();
         let envs = HashMap::from([("CROSTINI_TEST_VAR".to_string(), "set".to_string())]);
 
-        let _ = Crostini.setup_envs(envs);
+        assert!(Crostini.setup_envs(envs.clone()).is_ok());
 
         assert_eq!(std::env::vars().collect::<HashMap<_, _>>(), before);
-        assert!(CONTAINER_ENVS.get().is_some());
+        assert_eq!(CONTAINER_ENVS.get(), Some(&envs));
     }
 }
