@@ -18,10 +18,17 @@ use std::{ffi::OsStr, os::unix::process::CommandExt, process::Command};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[tracing::instrument(skip(argv))]
 pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> Result<i32> {
+    let mut command = Command::new(&argv[0]);
+    command.args(&argv[1..]);
+    supervise(command)
+}
+
+/// Spawn `command` as the sole child of this PID 1, forwarding signals and reaping zombies.
+#[tracing::instrument(skip(command))]
+pub(crate) fn supervise(mut command: Command) -> Result<i32> {
     tracing::info!("crostini: starting as PID 1 init");
-    tracing::info!(cmd = ?argv[0].as_ref(), "crostini: spawning child");
+    tracing::info!(cmd = ?command.get_program(), "crostini: spawning child");
 
     match nix::dir::Dir::open(
         "/proc/self/fd",
@@ -52,14 +59,10 @@ pub fn run<S: AsRef<OsStr>>(argv: &[S]) -> Result<i32> {
     }
 
     #[allow(clippy::zombie_processes)]
-    let child = Command::new(&argv[0])
-        .args(&argv[1..])
-        .process_group(0)
-        .spawn()
-        .map_err(|e| {
-            tracing::error!(cmd = ?argv[0].as_ref(), error = %e, "crostini: failed to spawn child");
-            e
-        })?;
+    let child = command.process_group(0).spawn().map_err(|e| {
+        tracing::error!(cmd = ?command.get_program(), error = %e, "crostini: failed to spawn child");
+        e
+    })?;
 
     let child_pid = Pid::from_raw(child.id() as i32);
     tracing::info!(%child_pid, "crostini: child spawned");

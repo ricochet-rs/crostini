@@ -1,3 +1,7 @@
+# 0.5.1
+
+- The `Crostini` executor passes the container environment to the child instead of writing it into the init process, so container init no longer hangs when another thread of a multi-threaded runtime was reading the environment at fork
+
 # 0.5.0
 
 - Bump `libcontainer` to 0.7.0 which adds rootless cgroup v2 support
