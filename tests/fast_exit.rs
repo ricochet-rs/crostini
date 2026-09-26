@@ -7,7 +7,10 @@ use libcontainer::{
     syscall::syscall::SyscallType,
 };
 use nix::{
-    sys::wait::{WaitStatus, waitpid},
+    sys::{
+        signal::{Signal, kill},
+        wait::{WaitStatus, waitpid},
+    },
     unistd::{Pid, getegid, geteuid},
 };
 use std::{fs::create_dir_all, io::Write, path::Path, sync::mpsc, thread, time::Duration};
@@ -67,26 +70,41 @@ fn init_exits_with_a_child_that_exits_immediately() -> Result<()> {
         spec.save(bundle.join("config.json"))?;
 
         let (tx, rx) = mpsc::channel();
-        thread::spawn(move || -> Result<()> {
-            let mut container =
-                ContainerBuilder::new(format!("crostini-fast-exit-{i}"), SyscallType::Linux)
-                    .with_executor(crostini::Crostini)
-                    .with_root_path(&state)?
-                    .as_init(&bundle)
-                    .with_systemd(false)
-                    .build()?;
-            let init = container
-                .pid()
-                .ok_or(anyhow::anyhow!("container has no init pid"))?;
-            container.start()?;
-            let status = waitpid(Pid::from_raw(init.as_raw()), None)?;
-            let _ = container.delete(true);
-            tx.send(status)?;
-            Ok(())
+        let (init_tx, init_rx) = mpsc::channel();
+        thread::spawn(move || {
+            let run = || -> Result<WaitStatus> {
+                let mut container =
+                    ContainerBuilder::new(format!("crostini-fast-exit-{i}"), SyscallType::Linux)
+                        .with_executor(crostini::Crostini)
+                        .with_root_path(&state)?
+                        .as_init(&bundle)
+                        .with_systemd(false)
+                        .build()?;
+                let init = container
+                    .pid()
+                    .ok_or(anyhow::anyhow!("container has no init pid"))?;
+                let init = Pid::from_raw(init.as_raw());
+                init_tx.send(init)?;
+                container.start()?;
+                let status = waitpid(init, None)?;
+                let _ = container.delete(true);
+                Ok(status)
+            };
+            let _ = tx.send(run());
         });
         match rx.recv_timeout(Duration::from_secs(5)) {
-            Ok(status) => assert!(matches!(status, WaitStatus::Exited(_, 0)), "{status:?}"),
-            Err(_) => hung += 1,
+            Ok(result) => {
+                let status = result?;
+                assert!(matches!(status, WaitStatus::Exited(_, 0)), "{status:?}");
+            }
+            Err(_) => {
+                hung += 1;
+                // Unblocks the worker's waitpid so it deletes the container before the bundle goes.
+                if let Ok(init) = init_rx.try_recv() {
+                    let _ = kill(init, Signal::SIGKILL);
+                    let _ = rx.recv_timeout(Duration::from_secs(5));
+                }
+            }
         }
     }
 
