@@ -1,6 +1,7 @@
 # 0.5.1
 
 - The `Crostini` executor passes the container environment to the child instead of writing it into the init process, so container init no longer hangs when another thread of a multi-threaded runtime was reading the environment at fork
+- Container init exits when its workload exits before init has finished installing its signal handling, instead of waiting forever for a `SIGCHLD` that was already discarded
 
 # 0.5.0
 
