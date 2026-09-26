@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use libcontainer::{
-    container::{Container, builder::ContainerBuilder},
+    container::builder::ContainerBuilder,
     oci_spec::runtime::{MountBuilder, Spec},
     syscall::syscall::SyscallType,
 };
@@ -12,53 +12,23 @@ use nix::{
 };
 use serial_test::serial;
 use std::{fs::create_dir_all, path::Path};
-use tempfile::{TempDir, tempdir};
+use tempfile::tempdir;
 
-const SLOTS: usize = 8;
+const CONTAINERS: usize = 8;
 
-struct Slot {
-    number: usize,
-    init: Pid,
-    container: Container,
-    _root: TempDir,
-}
-
-// `setup_envs` runs while a container is created and `exec` runs only once it is started, so
-// creating every slot before starting any leaves all eight inits holding an environment at once.
-// A shared `CONTAINER_ENVS` would hand a slot its sibling's `CROSTINI_SLOT`, and the workload
-// exits non-zero when the value is not its own.
 #[test]
 #[serial]
-fn concurrent_containers_each_see_their_own_environment() -> Result<()> {
-    let mut slots = Vec::with_capacity(SLOTS);
-    for number in 0..SLOTS {
-        slots.push(create_slot(number)?);
-    }
-
+fn each_container_sees_its_own_environment() -> Result<()> {
     let mut failures = Vec::new();
-    for slot in &mut slots {
-        if let Err(err) = slot.container.start() {
-            failures.push(format!("slot {} could not start: {err}", slot.number));
-        }
-    }
-
-    for slot in &slots {
-        match waitpid(slot.init, None) {
+    for id in 0..CONTAINERS {
+        match run_container(id) {
             Ok(WaitStatus::Exited(_, 0)) => {}
             Ok(WaitStatus::Exited(_, code)) => failures.push(format!(
-                "slot {} did not see CROSTINI_SLOT={} (exit {code})",
-                slot.number, slot.number
+                "container {id} did not see CROSTINI_CONTAINER_ID={id} (exit {code})"
             )),
-            Ok(status) => failures.push(format!("slot {} ended as {status:?}", slot.number)),
-            Err(err) => failures.push(format!(
-                "slot {} could not be waited on: {err}",
-                slot.number
-            )),
+            Ok(status) => failures.push(format!("container {id} ended as {status:?}")),
+            Err(err) => failures.push(format!("container {id} could not run: {err}")),
         }
-    }
-
-    for slot in &mut slots {
-        let _ = slot.container.delete(true);
     }
 
     if !failures.is_empty() {
@@ -67,8 +37,7 @@ fn concurrent_containers_each_see_their_own_environment() -> Result<()> {
     Ok(())
 }
 
-/// Create one container whose workload asserts that `CROSTINI_SLOT` holds its own number.
-fn create_slot(number: usize) -> Result<Slot> {
+fn run_container(id: usize) -> Result<WaitStatus> {
     let root = tempdir()?;
     let bundle = root.path().join("bundle");
     let state = root.path().join("state");
@@ -82,12 +51,12 @@ fn create_slot(number: usize) -> Result<Slot> {
     if let Some(process) = spec.process_mut() {
         process.set_env(Some(vec![
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".to_string(),
-            format!("CROSTINI_SLOT={number}"),
+            format!("CROSTINI_CONTAINER_ID={id}"),
         ]));
         process.set_args(Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            format!("test \"$CROSTINI_SLOT\" = \"{number}\""),
+            format!("test \"$CROSTINI_CONTAINER_ID\" = \"{id}\""),
         ]));
         process.set_cwd("/".into());
     }
@@ -107,23 +76,21 @@ fn create_slot(number: usize) -> Result<Slot> {
     spec.set_mounts(Some(mounts));
     spec.save(bundle.join("config.json"))?;
 
-    let container = ContainerBuilder::new(
-        format!("crostini-env-isolation-{number}"),
-        SyscallType::Linux,
-    )
-    .with_executor(crostini::Crostini)
-    .with_root_path(&state)?
-    .as_init(&bundle)
-    .with_systemd(false)
-    .build()?;
+    let container =
+        ContainerBuilder::new(format!("crostini-env-isolation-{id}"), SyscallType::Linux)
+            .with_executor(crostini::Crostini)
+            .with_root_path(&state)?
+            .as_init(&bundle)
+            .with_systemd(false)
+            .build()?;
     let init = container
         .pid()
         .ok_or_else(|| anyhow::anyhow!("container has no init pid"))?;
+    let init = Pid::from_raw(init.as_raw());
+    let mut container = scopeguard::guard(container, |mut c| {
+        let _ = c.delete(true);
+    });
 
-    Ok(Slot {
-        number,
-        init: Pid::from_raw(init.as_raw()),
-        container,
-        _root: root,
-    })
+    container.start()?;
+    Ok(waitpid(init, None)?)
 }
