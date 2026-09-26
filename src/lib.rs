@@ -84,6 +84,23 @@ pub(crate) fn supervise(mut command: Command) -> Result<i32> {
     let sfd = SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC)?;
 
     let exit_code = 'outer: loop {
+        loop {
+            match waitpid(Pid::from_raw(-1), Some(WaitPidFlag::WNOHANG)) {
+                Ok(WaitStatus::Exited(pid, code)) if pid == child_pid => {
+                    tracing::info!(%child_pid, %code, "crostini: child exited");
+                    break 'outer code;
+                }
+                Ok(WaitStatus::Signaled(pid, sig, _)) if pid == child_pid => {
+                    tracing::info!(%child_pid, %sig, "crostini: child killed by signal");
+                    break 'outer 128 + sig as i32;
+                }
+                Ok(WaitStatus::StillAlive) | Err(Errno::ECHILD) => break,
+                Err(Errno::EINTR) => continue,
+                Ok(_) => continue,
+                Err(_) => break,
+            }
+        }
+
         let info = match sfd.read_signal() {
             Ok(Some(i)) => i,
             Ok(None) => continue,
@@ -96,23 +113,7 @@ pub(crate) fn supervise(mut command: Command) -> Result<i32> {
         };
 
         match sig {
-            Signal::SIGCHLD => loop {
-                match waitpid(Pid::from_raw(-1), Some(WaitPidFlag::WNOHANG)) {
-                    Ok(WaitStatus::Exited(pid, code)) if pid == child_pid => {
-                        tracing::info!(%child_pid, %code, "crostini: child exited");
-                        break 'outer code;
-                    }
-                    Ok(WaitStatus::Signaled(pid, sig, _)) if pid == child_pid => {
-                        tracing::info!(%child_pid, %sig, "crostini: child killed by signal");
-                        break 'outer 128 + sig as i32;
-                    }
-                    Ok(WaitStatus::StillAlive) | Err(Errno::ECHILD) => break,
-                    Err(Errno::EINTR) => continue,
-                    Ok(_) => continue,
-                    Err(_) => break,
-                }
-            },
-            Signal::SIGKILL | Signal::SIGSTOP => {}
+            Signal::SIGCHLD | Signal::SIGKILL | Signal::SIGSTOP => {}
             sig => {
                 tracing::info!(%sig, %child_pid, "crostini: forwarding signal to child process group");
                 let _ = killpg(child_pid, sig);
