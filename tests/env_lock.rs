@@ -71,25 +71,30 @@ fn container_init_survives_concurrent_env_readers() -> Result<()> {
         spec.save(bundle.join("config.json"))?;
 
         let (tx, rx) = mpsc::channel();
-        thread::spawn(move || -> Result<()> {
-            let mut container =
-                ContainerBuilder::new(format!("crostini-env-lock-{i}"), SyscallType::Linux)
-                    .with_executor(crostini::Crostini)
-                    .with_root_path(&state)?
-                    .as_init(&bundle)
-                    .with_systemd(false)
-                    .build()?;
-            let init = container
-                .pid()
-                .ok_or(anyhow::anyhow!("container has no init pid"))?;
-            container.start()?;
-            let status = waitpid(Pid::from_raw(init.as_raw()), None)?;
-            let _ = container.delete(true);
-            tx.send(status)?;
-            Ok(())
+        thread::spawn(move || {
+            let run = || -> Result<WaitStatus> {
+                let mut container =
+                    ContainerBuilder::new(format!("crostini-env-lock-{i}"), SyscallType::Linux)
+                        .with_executor(crostini::Crostini)
+                        .with_root_path(&state)?
+                        .as_init(&bundle)
+                        .with_systemd(false)
+                        .build()?;
+                let init = container
+                    .pid()
+                    .ok_or(anyhow::anyhow!("container has no init pid"))?;
+                container.start()?;
+                let status = waitpid(Pid::from_raw(init.as_raw()), None)?;
+                let _ = container.delete(true);
+                Ok(status)
+            };
+            let _ = tx.send(run());
         });
         match rx.recv_timeout(Duration::from_secs(10)) {
-            Ok(status) => assert!(matches!(status, WaitStatus::Exited(_, 0)), "{status:?}"),
+            Ok(result) => {
+                let status = result?;
+                assert!(matches!(status, WaitStatus::Exited(_, 0)), "{status:?}");
+            }
             Err(_) => hung += 1,
         }
     }

@@ -15,8 +15,8 @@ static CONTAINER_ENVS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 /// A [`libcontainer`] [`Executor`] that runs the container workload under a correct PID 1 init.
 ///
-/// `Crostini` wraps [`crate::run`] to provide signal forwarding and zombie reaping when
-/// libcontainer places your process inside a PID namespace. Pass it to
+/// `Crostini` supervises the workload like [`crate::run`], providing signal forwarding and zombie
+/// reaping when libcontainer places your process inside a PID namespace. Pass it to
 /// [`ContainerBuilder::with_executor`](libcontainer::container::builder::ContainerBuilder::with_executor)
 /// when building a container.
 ///
@@ -76,8 +76,7 @@ impl Executor for Crostini {
             envs.and_then(|e| e.get("PATH"))
                 .map_or("/bin:/usr/bin", String::as_str)
                 .split(':')
-                .filter(|dir| !dir.is_empty())
-                .map(|dir| Path::new(dir).join(program))
+                .map(|dir| Path::new(if dir.is_empty() { "." } else { dir }).join(program))
                 .find(|path| {
                     path.metadata()
                         .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
