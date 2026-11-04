@@ -93,7 +93,9 @@ impl Executor for Crostini {
         let exit_code = crate::supervise(command).map_err(|e| ExecutorError::Other(e.to_string()));
 
         match exit_code {
-            Ok(v) => std::process::exit(v),
+            // Exit handlers can wait on a lock held by a thread that this forked init does not have.
+            #[allow(unsafe_code)]
+            Ok(v) => unsafe { nix::libc::_exit(v) },
             Err(e) => Err(e),
         }
     }
