@@ -1,0 +1,39 @@
+name: changelog
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: changelog
+  cancel-in-progress: true
+
+jobs:
+  upcoming:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # git-sv reads every commit since the last version tag.
+          fetch-depth: 0
+
+      - name: Generate upcoming release notes
+        uses: docker://docker.io/thegeeklab/git-sv:3.0.7
+        with:
+          args: release-notes -o upcoming.md
+
+      - name: Update changelog issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: Changelog for upcoming version
+        run: |
+          cat upcoming.md
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title "$TITLE" --body-file upcoming.md
+          else
+            gh issue edit "$number" --body-file upcoming.md
+          fi
