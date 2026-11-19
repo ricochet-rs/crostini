@@ -2,7 +2,8 @@
 abi <abi/4.0>,
 include <tunables/global>
 
-profile crostini-tests /**/target/debug/deps/* flags=(unconfined) {
+# Cargo before 1.100 writes test binaries to deps/, later versions to build/<package>/<hash>/out/.
+profile crostini-tests /**/target/debug/{deps/*,build/*/*/out/*} flags=(unconfined) {
   userns,
 
   # Site-specific additions and overrides.
