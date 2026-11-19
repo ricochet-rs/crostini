@@ -19,7 +19,8 @@ jobs:
           sudo cp contrib/apparmor/crostini-tests /etc/apparmor.d/
           sudo apparmor_parser -r /etc/apparmor.d/crostini-tests
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
 
