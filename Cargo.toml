@@ -16,12 +16,12 @@ libcontainer = { version = "=0.7.0", default-features = false, features = [
   "systemd",
   "v2"
 ], optional = true }
-nix = { version = "0.31", features = ["dir", "process", "signal"] }
+nix = { version = "0.32", features = ["dir", "process", "signal"] }
 tracing = "0.1"
 
 [dev-dependencies]
 anyhow = "1"
-nix = { version = "0.31", features = ["user"] }
+nix = { version = "0.32", features = ["user"] }
 scopeguard = "1"
 serial_test = "4"
 tempfile = "3"
