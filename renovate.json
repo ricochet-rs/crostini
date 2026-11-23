@@ -1,5 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>ricochet-rs/renovate-config"],
-  "separateMinorPatch": true
+  "separateMinorPatch": true,
+  "packageRules": [
+    {
+      "description": "Update Rust dependencies through ordinary version bumps instead of a weekly lock file refresh.",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "enabled": false
+    }
+  ]
 }
