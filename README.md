@@ -17,16 +17,18 @@ When a rootless container is run as PID 1 inside of the Linux PID namespace, sig
 
 Enable the `libcontainer` feature to get the `Crostini` executor, which implements `libcontainer::workload::Executor` and can be passed directly to `ContainerBuilder`.
 
+When enabling the `libcontainer` feature, `crostini` moves to a `#![deny(unsafe_code)]` as it is required to handle the exit statuses correctly when building rootless containers.
+
 ```toml
 [dependencies]
-crostini = { version = "0.3", features = ["libcontainer"] }
+crostini = { version = "1.0", features = ["libcontainer"] }
 ```
 
 ```rust
 use libcontainer::container::builder::ContainerBuilder;
 use libcontainer::syscall::syscall::SyscallType;
 
-let container = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
+let (container, fd) = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
     .with_root_path("/run/containers")?
     .with_executor(crostini::Crostini)
     .as_init("/path/to/bundle")
@@ -40,7 +42,7 @@ let container = ContainerBuilder::new("my-container".to_string(), SyscallType::L
 
 ```toml
 [dependencies]
-crostini = "0.3"
+crostini = "1.0"
 ```
 
 ```rust
@@ -60,4 +62,12 @@ Note that all FDs >= 3 are closed prior to spawning the child process.
 
 ## Dependencies
 
-`crostini` depends only on [`nix`](https://crates.io/crates/nix) for safe POSIX bindings. The `libcontainer` feature adds an optional dependency on [`libcontainer`](https://crates.io/crates/libcontainer).
+By default, you build `crostini` with two dependencies: [`nix`](https://crates.io/crates/nix) for safe POSIX bindings and [`tracing`](https://crates.io/crates/tracing) for logs.
+
+When you enable the `libcontainer` feature, you also build [`libcontainer`](https://crates.io/crates/libcontainer) 0.8.0.
+You need the libelf and zlib development headers and `pkg-config` on the build machine, because `libcontainer` 0.8.0 compiles libbpf from source.
+On Debian and Ubuntu, you install them with:
+
+```sh
+sudo apt-get install -y libelf-dev zlib1g-dev pkg-config
+```

@@ -26,7 +26,7 @@ static CONTAINER_ENVS: OnceLock<HashMap<String, String>> = OnceLock::new();
 /// use libcontainer::container::builder::ContainerBuilder;
 /// use libcontainer::syscall::syscall::SyscallType;
 ///
-/// let container = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
+/// let (container, fd) = ContainerBuilder::new("my-container".to_string(), SyscallType::Linux)
 ///     .with_root_path("/run/containers")?
 ///     .with_executor(crostini::Crostini)
 ///     .as_init("/path/to/bundle")
@@ -93,7 +93,10 @@ impl Executor for Crostini {
         let exit_code = crate::supervise(command).map_err(|e| ExecutorError::Other(e.to_string()));
 
         match exit_code {
-            Ok(v) => std::process::exit(v),
+            // Exit handlers can wait on a lock held by a thread that this forked init does not have.
+            // SAFETY: we pass `_exit` a plain `i32` and hand it no pointer or borrowed memory, so we break no invariant.
+            #[allow(unsafe_code)]
+            Ok(v) => unsafe { nix::libc::_exit(v) },
             Err(e) => Err(e),
         }
     }

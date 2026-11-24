@@ -1,3 +1,8 @@
+# 1.0.0
+
+- Bump `libcontainer` to 0.8.0, whose intermediate process also exits without running inherited exit handlers
+- Container init exits without running exit handlers inherited from a multi-threaded runtime, so it no longer hangs after its workload exits when another thread held a lock at fork
+
 # 0.5.1
 
 - The `Crostini` executor passes the container environment to the child instead of writing it into the init process, so container init no longer hangs when another thread of a multi-threaded runtime was reading the environment at fork

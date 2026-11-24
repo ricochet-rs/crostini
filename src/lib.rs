@@ -1,4 +1,5 @@
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "libcontainer"), forbid(unsafe_code))]
+#![cfg_attr(feature = "libcontainer", deny(unsafe_code))]
 
 #[cfg(feature = "libcontainer")]
 mod executor;

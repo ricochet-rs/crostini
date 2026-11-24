@@ -19,6 +19,10 @@ jobs:
           sudo cp contrib/apparmor/crostini-tests /etc/apparmor.d/
           sudo apparmor_parser -r /etc/apparmor.d/crostini-tests
 
+      # libcgroups 0.8 links libbpf, which builds against the system libelf and zlib.
+      - name: Install libelf
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev zlib1g-dev pkg-config
+
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install
 
