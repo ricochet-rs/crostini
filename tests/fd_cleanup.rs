@@ -117,7 +117,8 @@ fn inherited_fds_are_closed_before_child_spawn() -> Result<()> {
         .with_root_path(&state)?
         .as_init(&bundle)
         .with_systemd(use_systemd())
-        .build()?;
+        .build()?
+        .0;
 
     let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
     let mut container = scopeguard::guard(container, |mut c| {

@@ -79,7 +79,8 @@ fn init_exits_with_a_child_that_exits_immediately() -> Result<()> {
                         .with_root_path(&state)?
                         .as_init(&bundle)
                         .with_systemd(false)
-                        .build()?;
+                        .build()?
+                        .0;
                 let init = container
                     .pid()
                     .ok_or(anyhow::anyhow!("container has no init pid"))?;

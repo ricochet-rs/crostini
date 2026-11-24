@@ -182,7 +182,8 @@ fn r_interrupted_by_sigterm() -> Result<()> {
         .with_root_path(&state)?
         .as_init(&bundle)
         .with_systemd(use_systemd())
-        .build()?;
+        .build()?
+        .0;
 
     let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
 
@@ -228,7 +229,8 @@ fn sigterm_forwarded_to_child() -> Result<()> {
         .with_root_path(&state)?
         .as_init(&bundle)
         .with_systemd(use_systemd())
-        .build()?;
+        .build()?
+        .0;
 
     let init_pid = Pid::from_raw(container.pid().unwrap().as_raw());
 

@@ -82,7 +82,8 @@ fn run_container(id: usize) -> Result<WaitStatus> {
             .with_root_path(&state)?
             .as_init(&bundle)
             .with_systemd(false)
-            .build()?;
+            .build()?
+            .0;
     let init = container
         .pid()
         .ok_or_else(|| anyhow::anyhow!("container has no init pid"))?;

@@ -1,5 +1,6 @@
-# 0.5.2
+# 0.6.0
 
+- Bump `libcontainer` to 0.8.0, whose intermediate process also exits without running inherited exit handlers
 - Container init exits without running exit handlers inherited from a multi-threaded runtime, so it no longer hangs after its workload exits when another thread held a lock at fork
 
 # 0.5.1
