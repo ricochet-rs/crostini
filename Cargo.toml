@@ -1,6 +1,6 @@
 [package]
 name = "crostini"
-version = "0.6.0"
+version = "1.0.0"
 edition = "2024"
 description = "A minimal PID 1 container init that forwards signals and reaps zombies"
 repository = "https://github.com/ricochet-rs/crostini"
