@@ -8,6 +8,11 @@
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["lockFileMaintenance"],
       "enabled": false
+    },
+    {
+      "description": "Bump the declared range in Cargo.toml on every update instead of only refreshing Cargo.lock.",
+      "matchManagers": ["cargo"],
+      "rangeStrategy": "bump"
     }
   ]
 }
