@@ -24,7 +24,7 @@ anyhow = "1"
 nix = { version = "0.32", features = ["user"] }
 scopeguard = "1"
 serial_test = "4"
-tempfile = "3"
+tempfile = "3.0.8"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
